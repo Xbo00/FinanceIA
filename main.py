@@ -5,109 +5,92 @@ import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
-from sklearn import metrics
+from sklearn.metrics import accuracy_score
 
-# 1. CONFIGURACION
-st.set_page_config(page_title="AI Trading Bot Final", layout="wide")
+# 1. Configuración básica
+st.set_page_config(page_title="AI Trading Bot", layout="wide")
 st.title("Sistema de Trading IA - Version Estable")
 
-# 2. PANEL LATERAL
-st.sidebar.header("Configuracion")
-monedas = {
+# 2. Panel Lateral
+st.sidebar.header("Panel de Control")
+
+monedas_disponibles = {
     "Bitcoin": "BTC-USD",
     "Ethereum": "ETH-USD",
     "Solana": "SOL-USD",
     "Cardano": "ADA-USD",
-    "Dogecoin": "DOGE-USD"
+    "Binance Coin": "BNB-USD",
+    "XRP": "XRP-USD"
 }
-seleccion = st.sidebar.selectbox("Moneda", list(monedas.keys()))
-ticker = monedas[seleccion]
+nombre_moneda = st.sidebar.selectbox("Selecciona la Criptomoneda", list(monedas_disponibles.keys()))
+ticker_seleccionado = monedas_disponibles[nombre_moneda]
 
 if st.sidebar.button("Actualizar Datos"):
     st.cache_data.clear()
 
-dias_futuros = st.sidebar.slider("Dias a predecir", 1, 7, 3)
-sensibilidad = st.sidebar.slider("Sensibilidad (%)", 0.5, 5.0, 2.0)
+dias_prediccion = st.sidebar.slider("Dias hacia el futuro", 1, 7, 1)
 
-# 3. DATOS
+# 3. Carga de datos
 @st.cache_data
-def get_data(symbol):
-    df = yf.Ticker(symbol).history(period="4y", interval="1d")
-    df = df[['Close']].copy()
-    df.rename(columns={'Close': 'price'}, inplace=True)
-    return df
+def load_data(ticker):
+    data = yf.Ticker(ticker).history(period="4y", interval="1d")
+    data = data[['Close']].copy()
+    data.rename(columns={'Close': 'price'}, inplace=True)
+    return data
 
-data = get_data(ticker)
+data = load_data(ticker_seleccionado)
 
-# 4. INDICADORES
-data['ma7'] = data['price'].rolling(7).mean()
-data['ma30'] = data['price'].rolling(30).mean()
-data['ma90'] = data['price'].rolling(90).mean()
-delta = data['price'].diff()
-ganancia = (delta.where(delta > 0, 0)).rolling(14).mean()
-perdida = (-delta.where(delta < 0, 0)).rolling(14).mean()
-rs = ganancia / (perdida + 0.000001)
-data['rsi'] = 100 - (100 / (1 + rs))
-data['std'] = data['price'].rolling(7).std()
+# 4. Variables matemáticas simples (Features)
+data['ma_7'] = data['price'].rolling(window=7).mean()
+data['volatility_7'] = data['price'].rolling(window=7).std()
+data['ma_30'] = data['price'].rolling(window=30).mean()
+data['ma_90'] = data['price'].rolling(window=90).mean()
+data['tendencia'] = data['ma_30'] - data['ma_90'] 
 
-# 5. IA
-data['cambio_futuro'] = ((data['price'].shift(-dias_futuros) - data['price']) / data['price']) * 100
-def definir_target(cambio):
-    if cambio > sensibilidad: return 1
-    elif cambio < -sensibilidad: return -1
+# 5. Objetivo (Target)
+data['future_pct'] = (data['price'].shift(-dias_prediccion) - data['price']) / data['price']
+
+def create_signal(pct):
+    umbral = 0.02 # 2% de movimiento
+    if pct > umbral: return 1
+    elif pct < -umbral: return -1
     else: return 0
 
-data['target'] = data['cambio_futuro'].apply(definir_target)
+data['target'] = data['future_pct'].apply(create_signal)
 data.dropna(inplace=True)
 
-features = ['ma7', 'ma30', 'ma90', 'rsi', 'std']
+# 6. Entrenamiento de la IA
+features = ['ma_7', 'volatility_7', 'ma_30', 'ma_90', 'tendencia']
 X = data[features]
 y = data['target']
 
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, shuffle=False)
-model = RandomForestClassifier(n_estimators=100, max_depth=5, random_state=42)
+
+model = RandomForestClassifier(n_estimators=200, max_depth=5, random_state=42)
 model.fit(X_train, y_train)
 
-# 6. PREDICCION (AQUI ESTABA EL ERROR)
-acc = metrics.accuracy_score(y_test, model.predict(X_test)) * 100
-ultima_fila = X.iloc[[-1]]
+# 7. Prediccion y Resultados
+precio_actual = data['price'].iloc[-1]
+precision = accuracy_score(y_test, model.predict(X_test)) * 100
 
-# Extraemos el valor de forma ultra-segura
-prediccion_raw = model.predict(ultima_fila)
-pred_hoy = int(prediccion_raw) 
+# Prediccion de hoy (sacamos el valor simple para evitar errores)
+prediccion_raw = model.predict(data[features].iloc[[-1]])
+prediccion_hoy = int(prediccion_raw)
 
-# Probabilidades
-probs_raw = model.predict_proba(ultima_fila)
-probabilidades = probs_raw
-clases = list(model.classes_)
-indice = clases.index(pred_hoy)
-confianza_num = float(probabilidades[indice]) * 100
+# Interfaz
+col1, col2, col3 = st.columns(3)
+col1.metric(f"Precio {nombre_moneda}", f"${precio_actual:,.2f}")
+col2.metric("Precision", f"{precision:.2f}%")
 
-# 7. INTERFAZ
-col1, col2, col3, col4 = st.columns(4)
-col1.metric("Precio", f"${data['price'].iloc[-1]:,.2f}")
-col2.metric("Precision", f"{acc:.2f}%")
+res_map = {1: "COMPRAR", -1: "VENDER", 0: "HOLD / ESPERAR"}
+col3.metric("Decision IA", res_map[prediccion_hoy])
 
-res_map = {1: "COMPRAR", -1: "VENDER", 0: "ESPERAR"}
-col3.metric("Decision IA", res_map.get(pred_hoy, "ESPERAR"))
-col4.metric("Confianza", f"{confianza_num:.1f}%")
-
-st.write("---")
-
-# 8. GRAFICOS
-st.subheader("Graficos de Analisis")
-hist = data.iloc[-300:]
-
-fig1, ax1 = plt.subplots(figsize=(12, 4))
-ax1.plot(hist.index, hist['price'], color='black', label='Precio')
-ax1.plot(hist.index, hist['ma30'], color='blue', alpha=0.5, label='Media 30')
-ax1.grid(True, alpha=0.2)
-ax1.legend()
-st.pyplot(fig1)
-
-fig2, ax2 = plt.subplots(figsize=(12, 2))
-ax2.plot(hist.index, hist['rsi'], color='purple', label='RSI')
-ax2.axhline(70, color='red', linestyle='--', alpha=0.5)
-ax2.axhline(30, color='green', linestyle='--', alpha=0.5)
-ax2.set_ylim(0, 100)
-st.pyplot(fig2)
+# 8. Grafico Unico
+st.subheader("Analisis Visual")
+plot_data = data.iloc[-365:].copy()
+fig, ax = plt.subplots(figsize=(12, 5))
+ax.plot(plot_data.index, plot_data['price'], color='black', label="Precio")
+ax.plot(plot_data.index, plot_data['ma_30'], color='blue', alpha=0.5, label="Media 30d")
+ax.legend()
+ax.grid(True, alpha=0.3)
+st.pyplot(fig)
