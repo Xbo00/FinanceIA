@@ -8,8 +8,8 @@ from sklearn.model_selection import train_test_split
 from sklearn import metrics
 
 # 1. CONFIGURACION
-st.set_page_config(page_title="AI Trading Bot Pro", layout="wide")
-st.title("Sistema de Trading IA - Alta Precision")
+st.set_page_config(page_title="AI Trading Bot Final", layout="wide")
+st.title("Sistema de Trading IA - Version Estable")
 
 # 2. PANEL LATERAL
 st.sidebar.header("Configuracion")
@@ -23,11 +23,11 @@ monedas = {
 seleccion = st.sidebar.selectbox("Moneda", list(monedas.keys()))
 ticker = monedas[seleccion]
 
-if st.sidebar.button("Recargar Datos"):
+if st.sidebar.button("Actualizar Datos"):
     st.cache_data.clear()
 
 dias_futuros = st.sidebar.slider("Dias a predecir", 1, 7, 3)
-sensibilidad = st.sidebar.slider("Sensibilidad de señal (%)", 0.5, 5.0, 2.0)
+sensibilidad = st.sidebar.slider("Sensibilidad (%)", 0.5, 5.0, 2.0)
 
 # 3. DATOS
 @st.cache_data
@@ -60,52 +60,54 @@ def definir_target(cambio):
 data['target'] = data['cambio_futuro'].apply(definir_target)
 data.dropna(inplace=True)
 
-columnas_ia = ['ma7', 'ma30', 'ma90', 'rsi', 'std']
-X = data[columnas_ia]
+features = ['ma7', 'ma30', 'ma90', 'rsi', 'std']
+X = data[features]
 y = data['target']
 
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, shuffle=False)
-model = RandomForestClassifier(n_estimators=200, max_depth=8, random_state=42)
+model = RandomForestClassifier(n_estimators=100, max_depth=5, random_state=42)
 model.fit(X_train, y_train)
 
-# 6. PREDICCION Y METRICAS
+# 6. PREDICCION (AQUI ESTABA EL ERROR)
 acc = metrics.accuracy_score(y_test, model.predict(X_test)) * 100
 ultima_fila = X.iloc[[-1]]
 
-# PREDICCION LIMPIA
-pred_hoy = int(model.predict(ultima_fila))
-probs = model.predict_proba(ultima_fila)
+# Extraemos el valor de forma ultra-segura
+prediccion_raw = model.predict(ultima_fila)
+pred_hoy = int(prediccion_raw) 
+
+# Probabilidades
+probs_raw = model.predict_proba(ultima_fila)
+probabilidades = probs_raw
 clases = list(model.classes_)
-# Sacamos el valor de confianza y lo forzamos a ser un numero flotante puro
-confianza_valor = float(probs[clases.index(pred_hoy)]) * 100
+indice = clases.index(pred_hoy)
+confianza_num = float(probabilidades[indice]) * 100
 
 # 7. INTERFAZ
-c1, c2, c3, c4 = st.columns(4)
-c1.metric("Precio Actual", f"${data['price'].iloc[-1]:,.2f}")
-c2.metric("Precision", f"{acc:.2f}%")
+col1, col2, col3, col4 = st.columns(4)
+col1.metric("Precio", f"${data['price'].iloc[-1]:,.2f}")
+col2.metric("Precision", f"{acc:.2f}%")
 
 res_map = {1: "COMPRAR", -1: "VENDER", 0: "ESPERAR"}
-c3.metric("Decision IA", res_map.get(pred_hoy, "ESPERAR"))
-# Formateamos la confianza de forma mas sencilla para evitar errores
-c4.metric("Confianza", str(round(confianza_valor, 1)) + "%")
+col3.metric("Decision IA", res_map.get(pred_hoy, "ESPERAR"))
+col4.metric("Confianza", f"{confianza_num:.1f}%")
 
 st.write("---")
 
 # 8. GRAFICOS
-st.subheader("Visualizacion de Tendencias")
-hist_grafico = data.iloc[-365:]
+st.subheader("Graficos de Analisis")
+hist = data.iloc[-300:]
 
-fig_p, ax_p = plt.subplots(figsize=(12, 4))
-ax_p.plot(hist_grafico.index, hist_grafico['price'], color='black', label='Precio')
-ax_p.plot(hist_grafico.index, hist_grafico['ma30'], color='blue', alpha=0.5, label='Media 30')
-ax_p.legend()
-ax_p.grid(True, alpha=0.2)
-st.pyplot(fig_p)
+fig1, ax1 = plt.subplots(figsize=(12, 4))
+ax1.plot(hist.index, hist['price'], color='black', label='Precio')
+ax1.plot(hist.index, hist['ma30'], color='blue', alpha=0.5, label='Media 30')
+ax1.grid(True, alpha=0.2)
+ax1.legend()
+st.pyplot(fig1)
 
-st.write("Fuerza del Mercado (RSI)")
-fig_r, ax_r = plt.subplots(figsize=(12, 2))
-ax_r.plot(hist_grafico.index, hist_grafico['rsi'], color='purple')
-ax_r.axhline(70, color='red', linestyle='--', alpha=0.3)
-ax_r.axhline(30, color='green', linestyle='--', alpha=0.3)
-ax_r.set_ylim(0, 100)
-st.pyplot(fig_r)
+fig2, ax2 = plt.subplots(figsize=(12, 2))
+ax2.plot(hist.index, hist['rsi'], color='purple', label='RSI')
+ax2.axhline(70, color='red', linestyle='--', alpha=0.5)
+ax2.axhline(30, color='green', linestyle='--', alpha=0.5)
+ax2.set_ylim(0, 100)
+st.pyplot(fig2)
