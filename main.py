@@ -48,44 +48,37 @@ def load_data(ticker):
 
 data = load_data(ticker_seleccionado)
 
-# 1. Indicadores de Tendencia
+# Indicadores
 data['ma_7'] = data['price'].rolling(window=7).mean()
 data['volatility_7'] = data['price'].rolling(window=7).std()
 data['ma_30'] = data['price'].rolling(window=30).mean()
 data['ma_90'] = data['price'].rolling(window=90).mean()
 data['tendencia_larga'] = data['ma_30'] - data['ma_90']
 
-# 2. RSI (Indice de Fuerza Relativa)
 delta = data['price'].diff()
 gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
 loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
 rs = gain / loss
 data['rsi_14'] = 100 - (100 / (1 + rs))
 
-# 3. MACD
 ema_12 = data['price'].ewm(span=12, adjust=False).mean()
 ema_26 = data['price'].ewm(span=26, adjust=False).mean()
 data['macd'] = ema_12 - ema_26
 data['macd_signal'] = data['macd'].ewm(span=9, adjust=False).mean()
 
-# ==========================================
-# CREACION DEL OBJETIVO (Target)
-# ==========================================
+# Objetivo
 data['future_pct_change'] = ((data['price'].shift(-dias_prediccion) - data['price']) / data['price']) * 100
 
 def create_signal(pct_change):
-    if pct_change >= umbral_porcentaje: 
-        return 1
-    elif pct_change <= -umbral_porcentaje: 
-        return -1
-    else: 
-        return 0
+    if pct_change >= umbral_porcentaje: return 1
+    elif pct_change <= -umbral_porcentaje: return -1
+    else: return 0
 
 data['target'] = data['future_pct_change'].apply(create_signal)
 data.dropna(inplace=True)
 
 # ==========================================
-# ENTRENAMIENTO DEL MODELO DE IA
+# ENTRENAMIENTO
 # ==========================================
 features = ['ma_7', 'volatility_7', 'ma_30', 'ma_90', 'tendencia_larga', 'rsi_14', 'macd', 'macd_signal']
 X = data[features]
@@ -100,31 +93,28 @@ preds = model.predict(X_test)
 precision = accuracy_score(y_test, preds) * 100
 
 # ==========================================
-# PREDICCION Y CALCULO DE CONFIANZA
+# PREDICCION
 # ==========================================
 precio_actual = data['price'].iloc[-1]
 ultima_fila = data.iloc[[-1]][features]
 
-prediccion_hoy = model.predict(ultima_fila) # Añadido para extraer el valor
-probabilidades = model.predict_proba(ultima_fila)
+prediccion_hoy = model.predict(ultima_fila)
+probabilidades = model.predict_proba(ultima_fila) # Accedemos a la primera fila de probas
 
 clases_modelo = list(model.classes_)
 indice_prediccion = clases_modelo.index(prediccion_hoy)
 nivel_confianza = probabilidades[indice_prediccion] * 100
 
 # ==========================================
-# INTERFAZ GRAFICA Y RESULTADOS
+# INTERFAZ
 # ==========================================
 col1, col2, col3, col4 = st.columns(4)
 col1.metric(f"Precio {nombre_moneda}", f"${precio_actual:,.4f}")
 col2.metric("Precision Test", f"{precision:.2f}%")
 
-if prediccion_hoy == 1:
-    estado = "COMPRAR"
-elif prediccion_hoy == -1:
-    estado = "VENDER"
-else:
-    estado = "ESPERAR"
+estado = "ESPERAR"
+if prediccion_hoy == 1: estado = "COMPRAR"
+elif prediccion_hoy == -1: estado = "VENDER"
 
 col3.metric("Decision IA", estado)
 col4.metric("Nivel de Confianza", f"{nivel_confianza:.2f}%")
@@ -134,10 +124,9 @@ st.subheader("Analisis Tecnico del Modelo")
 
 plot_data = data.iloc[-200:].copy()
 
-# LINEA CORREGIDA AQUI:
+# AQUI LA LINEA CORREGIDA
 fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(14, 8), gridspec_kw={'height_ratios':})
 
-# Grafico 1: Precios y Medias
 ax1.plot(plot_data.index, plot_data['price'], label="Precio", color='black', alpha=0.8)
 ax1.plot(plot_data.index, plot_data['ma_30'], label="Tendencia 30 dias", color='blue', alpha=0.5)
 ax1.plot(plot_data.index, plot_data['ma_90'], label="Tendencia 90 dias", color='orange', alpha=0.5)
@@ -145,7 +134,6 @@ ax1.set_title(f"Evolucion del precio - {nombre_moneda}")
 ax1.legend()
 ax1.grid(True, alpha=0.3)
 
-# Grafico 2: RSI
 ax2.plot(plot_data.index, plot_data['rsi_14'], label="RSI (14)", color='purple', alpha=0.8)
 ax2.axhline(70, color='red', linestyle='--', alpha=0.5) 
 ax2.axhline(30, color='green', linestyle='--', alpha=0.5) 
