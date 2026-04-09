@@ -34,6 +34,15 @@ if st.sidebar.button("Actualizar Datos Ahora"):
 
 dias_prediccion = st.sidebar.slider("Dias hacia el futuro a predecir", 1, 7, 1)
 
+# Estado simple de posicion para evitar senales de "vender" sin compras previas
+if "tiene_posicion" not in st.session_state:
+    st.session_state.tiene_posicion = False
+
+st.sidebar.subheader("Estado de Posicion")
+st.session_state.tiene_posicion = st.sidebar.checkbox(
+    "Tengo una posicion abierta", value=st.session_state.tiene_posicion
+)
+
 # ==========================================
 # NUCLEO DEL MODELO
 # ==========================================
@@ -84,7 +93,7 @@ precision = accuracy_score(y_test, preds) * 100
 # ==========================================
 precio_actual = data['price'].iloc[-1]
 ultima_fila = data.iloc[[-1]][features]
-prediccion_hoy = model.predict(ultima_fila)
+prediccion_hoy = int(model.predict(ultima_fila)[0])
 
 col1, col2, col3 = st.columns(3)
 col1.metric(f"Precio Actual {nombre_moneda}", f"${precio_actual:,.4f}")
@@ -92,8 +101,10 @@ col2.metric("Precision Historica", f"{precision:.2f}%")
 
 if prediccion_hoy == 1:
     estado = "COMPRAR"
-elif prediccion_hoy == -1:
+elif prediccion_hoy == -1 and st.session_state.tiene_posicion:
     estado = "VENDER"
+elif prediccion_hoy == -1 and not st.session_state.tiene_posicion:
+    estado = "ESPERAR (SIN POSICION PARA VENDER)"
 else:
     estado = "ESPERAR / HOLD"
 
