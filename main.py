@@ -7,25 +7,19 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 from sklearn import metrics
 
-# Configuracion de la pagina
+# 1. CONFIGURACION Y TITULO
 st.set_page_config(page_title="AI Trading Bot Pro", layout="wide")
 st.title("Sistema de Trading IA - Alta Precision")
 
-# ==========================================
-# PANEL LATERAL (Sidebar)
-# ==========================================
+# 2. PANEL LATERAL
 st.sidebar.header("Configuracion")
-
 monedas = {
     "Bitcoin": "BTC-USD",
     "Ethereum": "ETH-USD",
     "Solana": "SOL-USD",
     "Cardano": "ADA-USD",
-    "Binance Coin": "BNB-USD",
-    "XRP": "XRP-USD",
     "Dogecoin": "DOGE-USD"
 }
-
 seleccion = st.sidebar.selectbox("Moneda", list(monedas.keys()))
 ticker = monedas[seleccion]
 
@@ -35,9 +29,7 @@ if st.sidebar.button("Recargar Datos"):
 dias_futuros = st.sidebar.slider("Dias a predecir", 1, 7, 3)
 sensibilidad = st.sidebar.slider("Sensibilidad de señal (%)", 0.5, 5.0, 2.0)
 
-# ==========================================
-# OBTENCION DE DATOS
-# ==========================================
+# 3. OBTENCION DE DATOS
 @st.cache_data
 def get_data(symbol):
     df = yf.Ticker(symbol).history(period="4y", interval="1d")
@@ -47,18 +39,19 @@ def get_data(symbol):
 
 data = get_data(ticker)
 
-# INDICADORES
+# 4. INDICADORES TECNICOS
 data['ma7'] = data['price'].rolling(7).mean()
 data['ma30'] = data['price'].rolling(30).mean()
 data['ma90'] = data['price'].rolling(90).mean()
+
 delta = data['price'].diff()
 ganancia = (delta.where(delta > 0, 0)).rolling(14).mean()
 perdida = (-delta.where(delta < 0, 0)).rolling(14).mean()
-rs = ganancia / (perdida + 0.000001) # Evita division por cero
+rs = ganancia / (perdida + 0.000001)
 data['rsi'] = 100 - (100 / (1 + rs))
 data['std'] = data['price'].rolling(7).std()
 
-# OBJETIVO
+# 5. ETIQUETADO Y ENTRENAMIENTO
 data['cambio_futuro'] = ((data['price'].shift(-dias_futuros) - data['price']) / data['price']) * 100
 
 def definir_target(cambio):
@@ -69,7 +62,6 @@ def definir_target(cambio):
 data['target'] = data['cambio_futuro'].apply(definir_target)
 data.dropna(inplace=True)
 
-# MODELO
 columnas_ia = ['ma7', 'ma30', 'ma90', 'rsi', 'std']
 X = data[columnas_ia]
 y = data['target']
@@ -78,29 +70,26 @@ X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, shuffle
 model = RandomForestClassifier(n_estimators=200, max_depth=8, random_state=42)
 model.fit(X_train, y_train)
 
-# EVALUACION
-predicciones_test = model.predict(X_test)
-acc = metrics.accuracy_score(y_test, predicciones_test) * 100
-
-# ==========================================
-# PREDICCION ACTUAL (CORREGIDA PARA EVITAR TYPEERROR)
-# ==========================================
+# 6. PREDICCION Y METRICAS
+acc = metrics.accuracy_score(y_test, model.predict(X_test)) * 100
 ultima_fila = X.iloc[[-1]]
-# Forzamos a que sea un numero entero simple (int)
+
+# --- BLOQUE CRITICO CORREGIDO ---
 resultado_raw = model.predict(ultima_fila)
-pred_hoy = int(resultado_raw) 
+# Usamos .item() que es la forma mas segura de sacar un solo valor de un array de numpy
+pred_hoy = int(resultado_raw.item()) 
 
 probabilidades = model.predict_proba(ultima_fila)
 clases = list(model.classes_)
 idx = clases.index(pred_hoy)
 confianza = probabilidades[idx] * 100
+# --------------------------------
 
-# INTERFAZ
+# 7. INTERFAZ DE USUARIO
 c1, c2, c3, c4 = st.columns(4)
 c1.metric("Precio Actual", f"${data['price'].iloc[-1]:,.2f}")
 c2.metric("Precision", f"{acc:.2f}%")
 
-# Mapa de resultados
 res_map = {1: "COMPRAR", -1: "VENDER", 0: "ESPERAR"}
 decision_texto = res_map.get(pred_hoy, "ESPERAR")
 
@@ -109,7 +98,7 @@ c4.metric("Confianza", f"{confianza:.1f}%")
 
 st.write("---")
 
-# GRAFICOS
+# 8. GRAFICOS
 st.subheader("Visualizacion de Tendencias")
 hist_grafico = data.iloc[-365:]
 
