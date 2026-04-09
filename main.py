@@ -55,14 +55,14 @@ data['ma_30'] = data['price'].rolling(window=30).mean()
 data['ma_90'] = data['price'].rolling(window=90).mean()
 data['tendencia_larga'] = data['ma_30'] - data['ma_90']
 
-# 2. RSI (Indice de Fuerza Relativa) - Detecta sobrecompra/sobreventa
+# 2. RSI (Indice de Fuerza Relativa)
 delta = data['price'].diff()
 gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
 loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
 rs = gain / loss
 data['rsi_14'] = 100 - (100 / (1 + rs))
 
-# 3. MACD (Convergencia/Divergencia de Medias Moviles)
+# 3. MACD
 ema_12 = data['price'].ewm(span=12, adjust=False).mean()
 ema_26 = data['price'].ewm(span=26, adjust=False).mean()
 data['macd'] = ema_12 - ema_26
@@ -71,7 +71,6 @@ data['macd_signal'] = data['macd'].ewm(span=9, adjust=False).mean()
 # ==========================================
 # CREACION DEL OBJETIVO (Target)
 # ==========================================
-# Convertimos el cambio a un porcentaje estandar
 data['future_pct_change'] = ((data['price'].shift(-dias_prediccion) - data['price']) / data['price']) * 100
 
 def create_signal(pct_change):
@@ -83,8 +82,6 @@ def create_signal(pct_change):
         return 0
 
 data['target'] = data['future_pct_change'].apply(create_signal)
-
-# Eliminamos cualquier fila con datos incompletos para evitar bugs en el entrenamiento
 data.dropna(inplace=True)
 
 # ==========================================
@@ -94,10 +91,8 @@ features = ['ma_7', 'volatility_7', 'ma_30', 'ma_90', 'tendencia_larga', 'rsi_14
 X = data[features]
 y = data['target']
 
-# Mantenemos el orden cronologico estricto
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, shuffle=False)
 
-# Aumentamos la complejidad del modelo para mayor precision
 model = RandomForestClassifier(n_estimators=300, max_depth=7, min_samples_split=5, random_state=42)
 model.fit(X_train, y_train)
 
@@ -110,11 +105,9 @@ precision = accuracy_score(y_test, preds) * 100
 precio_actual = data['price'].iloc[-1]
 ultima_fila = data.iloc[[-1]][features]
 
-# Extraemos el valor exacto con para evitar errores de listas
-prediccion_hoy = model.predict(ultima_fila)
+prediccion_hoy = model.predict(ultima_fila) # Añadido para extraer el valor
 probabilidades = model.predict_proba(ultima_fila)
 
-# Extraemos el porcentaje de seguridad que tiene la IA sobre su propia decision
 clases_modelo = list(model.classes_)
 indice_prediccion = clases_modelo.index(prediccion_hoy)
 nivel_confianza = probabilidades[indice_prediccion] * 100
@@ -137,14 +130,11 @@ col3.metric("Decision IA", estado)
 col4.metric("Nivel de Confianza", f"{nivel_confianza:.2f}%")
 
 st.write("---")
-
-# Graficos divididos para analisis profesional
 st.subheader("Analisis Tecnico del Modelo")
 
-# Mostramos solo los ultimos 200 dias para que el grafico no se comprima
 plot_data = data.iloc[-200:].copy()
 
-# AQUI ESTA LA LINEA DE SINTAXIS COMPLETAMENTE ARREGLADA
+# LINEA CORREGIDA AQUI:
 fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(14, 8), gridspec_kw={'height_ratios':})
 
 # Grafico 1: Precios y Medias
@@ -157,8 +147,8 @@ ax1.grid(True, alpha=0.3)
 
 # Grafico 2: RSI
 ax2.plot(plot_data.index, plot_data['rsi_14'], label="RSI (14)", color='purple', alpha=0.8)
-ax2.axhline(70, color='red', linestyle='--', alpha=0.5) # Linea de sobrecompra
-ax2.axhline(30, color='green', linestyle='--', alpha=0.5) # Linea de sobreventa
+ax2.axhline(70, color='red', linestyle='--', alpha=0.5) 
+ax2.axhline(30, color='green', linestyle='--', alpha=0.5) 
 ax2.set_title("Indice de Fuerza Relativa (RSI)")
 ax2.legend()
 ax2.grid(True, alpha=0.3)
