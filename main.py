@@ -59,7 +59,7 @@ data['future_pct_change'] = (data['price'].shift(-dias_prediccion) - data['price
 
 def create_signal(pct_change):
     # Umbral de 2% diario de movimiento para tomar accion
-    umbral = 0.02 * dias_prediccion
+    umbral = 0.01 * dias_prediccion
     if pct_change > umbral: return 1
     elif pct_change < -umbral: return -1
     else: return 0
