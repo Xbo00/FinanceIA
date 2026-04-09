@@ -7,13 +7,16 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
 
-# 1. Configuración básica
+# Configuracion de la pagina web
 st.set_page_config(page_title="AI Trading Bot", layout="wide")
-st.title("Sistema de Trading IA - Version Estable")
+st.title("Sistema de Trading IA - Multi-Activos")
 
-# 2. Panel Lateral
+# ==========================================
+# PANEL LATERAL (Sidebar)
+# ==========================================
 st.sidebar.header("Panel de Control")
 
+# 1. Selector de Monedas
 monedas_disponibles = {
     "Bitcoin": "BTC-USD",
     "Ethereum": "ETH-USD",
@@ -25,12 +28,16 @@ monedas_disponibles = {
 nombre_moneda = st.sidebar.selectbox("Selecciona la Criptomoneda", list(monedas_disponibles.keys()))
 ticker_seleccionado = monedas_disponibles[nombre_moneda]
 
-if st.sidebar.button("Actualizar Datos"):
-    st.cache_data.clear()
+# 2. Boton de Refresh
+if st.sidebar.button("Actualizar Datos Ahora"):
+    st.cache_data.clear() # Limpia la memoria para forzar una nueva descarga
 
-dias_prediccion = st.sidebar.slider("Dias hacia el futuro", 1, 7, 1)
+dias_prediccion = st.sidebar.slider("Dias hacia el futuro a predecir", 1, 7, 1)
 
-# 3. Carga de datos
+# ==========================================
+# NUCLEO DEL MODELO
+# ==========================================
+# Descarga de datos con cache (acepta el ticker como parametro)
 @st.cache_data
 def load_data(ticker):
     data = yf.Ticker(ticker).history(period="4y", interval="1d")
@@ -40,27 +47,28 @@ def load_data(ticker):
 
 data = load_data(ticker_seleccionado)
 
-# 4. Variables matemáticas simples (Features)
+# Variables (Features)
 data['ma_7'] = data['price'].rolling(window=7).mean()
 data['volatility_7'] = data['price'].rolling(window=7).std()
 data['ma_30'] = data['price'].rolling(window=30).mean()
 data['ma_90'] = data['price'].rolling(window=90).mean()
-data['tendencia'] = data['ma_30'] - data['ma_90'] 
+data['tendencia_larga'] = data['ma_30'] - data['ma_90'] 
 
-# 5. Objetivo (Target)
-data['future_pct'] = (data['price'].shift(-dias_prediccion) - data['price']) / data['price']
+# Objetivo (Target) basado en PORCENTAJES
+data['future_pct_change'] = (data['price'].shift(-dias_prediccion) - data['price']) / data['price']
 
-def create_signal(pct):
-    umbral = 0.02 # 2% de movimiento
-    if pct > umbral: return 1
-    elif pct < -umbral: return -1
+def create_signal(pct_change):
+    # Umbral de 2% diario de movimiento para tomar accion
+    umbral = 0.02 * dias_prediccion
+    if pct_change > umbral: return 1
+    elif pct_change < -umbral: return -1
     else: return 0
 
-data['target'] = data['future_pct'].apply(create_signal)
+data['target'] = data['future_pct_change'].apply(create_signal)
 data.dropna(inplace=True)
 
-# 6. Entrenamiento de la IA
-features = ['ma_7', 'volatility_7', 'ma_30', 'ma_90', 'tendencia']
+# Entrenamiento
+features = ['ma_7', 'volatility_7', 'ma_30', 'ma_90', 'tendencia_larga']
 X = data[features]
 y = data['target']
 
@@ -68,29 +76,38 @@ X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, shuffle
 
 model = RandomForestClassifier(n_estimators=200, max_depth=5, random_state=42)
 model.fit(X_train, y_train)
+preds = model.predict(X_test)
+precision = accuracy_score(y_test, preds) * 100
 
-# 7. Prediccion y Resultados
+# ==========================================
+# INTERFAZ Y RESULTADOS
+# ==========================================
 precio_actual = data['price'].iloc[-1]
-precision = accuracy_score(y_test, model.predict(X_test)) * 100
+ultima_fila = data.iloc[[-1]][features]
+prediccion_hoy = model.predict(ultima_fila)
 
-# Prediccion de hoy (sacamos el valor simple para evitar errores)
-prediccion_raw = model.predict(data[features].iloc[[-1]])
-prediccion_hoy = int(prediccion_raw)
-
-# Interfaz
 col1, col2, col3 = st.columns(3)
-col1.metric(f"Precio {nombre_moneda}", f"${precio_actual:,.2f}")
-col2.metric("Precision", f"{precision:.2f}%")
+col1.metric(f"Precio Actual {nombre_moneda}", f"${precio_actual:,.4f}")
+col2.metric("Precision Historica", f"{precision:.2f}%")
 
-res_map = {1: "COMPRAR", -1: "VENDER", 0: "HOLD / ESPERAR"}
-col3.metric("Decision IA", res_map[prediccion_hoy])
+if prediccion_hoy == 1:
+    estado = "COMPRAR"
+elif prediccion_hoy == -1:
+    estado = "VENDER"
+else:
+    estado = "ESPERAR / HOLD"
 
-# 8. Grafico Unico
-st.subheader("Analisis Visual")
+col3.metric("Decision de la IA", estado)
+
+st.subheader(f"Grafico Historico y Senales ({nombre_moneda})")
 plot_data = data.iloc[-365:].copy()
+
 fig, ax = plt.subplots(figsize=(12, 5))
-ax.plot(plot_data.index, plot_data['price'], color='black', label="Precio")
-ax.plot(plot_data.index, plot_data['ma_30'], color='blue', alpha=0.5, label="Media 30d")
+ax.plot(plot_data.index, plot_data['price'], label=f"Precio {nombre_moneda}", color='black', alpha=0.7)
+ax.plot(plot_data.index, plot_data['ma_30'], label="Tendencia 30 dias", color='blue', alpha=0.4, linestyle='--')
+ax.plot(plot_data.index, plot_data['ma_90'], label="Tendencia 90 dias", color='orange', alpha=0.4, linestyle='--')
+
+ax.set_title(f"Evolucion del precio de {nombre_moneda} e indicadores")
 ax.legend()
 ax.grid(True, alpha=0.3)
 st.pyplot(fig)
