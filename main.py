@@ -7,13 +7,13 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
 
-# Configuracion de la pagina web
+# Config web
 st.set_page_config(page_title="AI Trading Bot", layout="wide")
 st.title("Sistema de Trading IA - Multi-Activos")
 
-# ==========================================
-# PANEL LATERAL (Sidebar)
-# ==========================================
+
+# PANEL LATERAL
+
 st.sidebar.header("Panel de Control")
 
 # 1. Selector de Monedas
@@ -30,7 +30,7 @@ ticker_seleccionado = monedas_disponibles[nombre_moneda]
 
 # 2. Boton de Refresh
 if st.sidebar.button("Actualizar Datos Ahora"):
-    st.cache_data.clear() # Limpia la memoria para forzar una nueva descarga
+    st.cache_data.clear() # Limpia la memoria para una nueva descarga
 
 dias_prediccion = st.sidebar.slider("Dias hacia el futuro a predecir", 1, 7, 1)
 
@@ -70,9 +70,9 @@ unidades_en_cartera = st.session_state.cartera_unidades[ticker_seleccionado]
 tiene_posicion = unidades_en_cartera > 0
 st.sidebar.caption(f"Unidades actuales de {nombre_moneda}: {unidades_en_cartera:.4f}")
 
-# ==========================================
+
 # NUCLEO DEL MODELO
-# ==========================================
+
 # Descarga de datos con cache (acepta el ticker como parametro)
 @st.cache_data
 def load_data(ticker):
@@ -83,19 +83,19 @@ def load_data(ticker):
 
 data = load_data(ticker_seleccionado)
 
-# Variables (Features)
+# Variables
 data['ma_7'] = data['price'].rolling(window=7).mean()
 data['volatility_7'] = data['price'].rolling(window=7).std()
 data['ma_30'] = data['price'].rolling(window=30).mean()
 data['ma_90'] = data['price'].rolling(window=90).mean()
 data['tendencia_larga'] = data['ma_30'] - data['ma_90'] 
 
-# Objetivo (Target) basado en PORCENTAJES
+# Objetivo basado en PORCENTAJES
 data['future_pct_change'] = (data['price'].shift(-dias_prediccion) - data['price']) / data['price']
 
 def create_signal(pct_change):
-    # Umbral de 2% diario de movimiento para tomar accion
-    umbral = 0.02 * dias_prediccion
+    # Umbral de 1% diario de movimiento 
+    umbral = 0.01 * dias_prediccion
     if pct_change > umbral: return 1
     elif pct_change < -umbral: return -1
     else: return 0
@@ -115,9 +115,9 @@ model.fit(X_train, y_train)
 preds = model.predict(X_test)
 precision = accuracy_score(y_test, preds) * 100
 
-# ==========================================
+
 # INTERFAZ Y RESULTADOS
-# ==========================================
+
 precio_actual = data['price'].iloc[-1]
 ultima_fila = data.iloc[[-1]][features]
 prediccion_hoy = int(model.predict(ultima_fila)[0])
