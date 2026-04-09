@@ -76,4 +76,54 @@ y = data['target']
 
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, shuffle=False)
 model = RandomForestClassifier(n_estimators=200, max_depth=8, random_state=42)
-model.fit(X_train
+model.fit(X_train, y_train)
+
+# EVALUACION
+predicciones_test = model.predict(X_test)
+acc = metrics.accuracy_score(y_test, predicciones_test) * 100
+
+# ==========================================
+# PREDICCION ACTUAL (CORREGIDA PARA EVITAR TYPEERROR)
+# ==========================================
+ultima_fila = X.iloc[[-1]]
+# Forzamos a que sea un numero entero simple (int)
+resultado_raw = model.predict(ultima_fila)
+pred_hoy = int(resultado_raw) 
+
+probabilidades = model.predict_proba(ultima_fila)
+clases = list(model.classes_)
+idx = clases.index(pred_hoy)
+confianza = probabilidades[idx] * 100
+
+# INTERFAZ
+c1, c2, c3, c4 = st.columns(4)
+c1.metric("Precio Actual", f"${data['price'].iloc[-1]:,.2f}")
+c2.metric("Precision", f"{acc:.2f}%")
+
+# Mapa de resultados
+res_map = {1: "COMPRAR", -1: "VENDER", 0: "ESPERAR"}
+decision_texto = res_map.get(pred_hoy, "ESPERAR")
+
+c3.metric("Decision IA", decision_texto)
+c4.metric("Confianza", f"{confianza:.1f}%")
+
+st.write("---")
+
+# GRAFICOS
+st.subheader("Visualizacion de Tendencias")
+hist_grafico = data.iloc[-365:]
+
+fig_price, ax_price = plt.subplots(figsize=(12, 4))
+ax_price.plot(hist_grafico.index, hist_grafico['price'], color='black', label='Precio')
+ax_price.plot(hist_grafico.index, hist_grafico['ma30'], color='blue', alpha=0.5, label='Media 30')
+ax_price.legend()
+ax_price.grid(True, alpha=0.2)
+st.pyplot(fig_price)
+
+st.write("Fuerza del Mercado (RSI)")
+fig_rsi, ax_rsi = plt.subplots(figsize=(12, 2))
+ax_rsi.plot(hist_grafico.index, hist_grafico['rsi'], color='purple')
+ax_rsi.axhline(70, color='red', linestyle='--', alpha=0.3)
+ax_rsi.axhline(30, color='green', linestyle='--', alpha=0.3)
+ax_rsi.set_ylim(0, 100)
+st.pyplot(fig_rsi)
