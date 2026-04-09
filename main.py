@@ -1,8 +1,4 @@
-diff --git a/main.py b/main.py
-index 2ab79957024172109bb7851f98f0a27611fa02e8..5da9b9063c92a4489d71f663c78ff119717bdf11 100644
---- a/main.py
-+++ b/main.py
-@@ -1,54 +1,59 @@
+
  import streamlit as st
  import yfinance as yf
  import pandas as pd
@@ -135,3 +131,6 @@ index 2ab79957024172109bb7851f98f0a27611fa02e8..5da9b9063c92a4489d71f663c78ff119
  ax.legend()
  ax.grid(True, alpha=0.3)
  st.pyplot(fig)
+ 
+EOF
+)
