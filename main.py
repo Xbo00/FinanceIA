@@ -34,6 +34,42 @@ if st.sidebar.button("Actualizar Datos Ahora"):
 
 dias_prediccion = st.sidebar.slider("Dias hacia el futuro a predecir", 1, 7, 1)
 
+# Estado de cartera por activo (simulado en la sesion) para evitar ventas sin compras previas
+if "cartera_unidades" not in st.session_state:
+    st.session_state.cartera_unidades = {ticker: 0.0 for ticker in monedas_disponibles.values()}
+
+if "historial_operaciones" not in st.session_state:
+    st.session_state.historial_operaciones = []
+
+if ticker_seleccionado not in st.session_state.cartera_unidades:
+    st.session_state.cartera_unidades[ticker_seleccionado] = 0.0
+
+st.sidebar.subheader("Cartera (Simulacion)")
+cantidad_operacion = st.sidebar.number_input(
+    "Cantidad para registrar (unidades)", min_value=0.0, value=0.01, step=0.01, format="%.4f"
+)
+
+col_buy, col_sell = st.sidebar.columns(2)
+if col_buy.button("Registrar Compra"):
+    st.session_state.cartera_unidades[ticker_seleccionado] += float(cantidad_operacion)
+    st.session_state.historial_operaciones.append(
+        {"activo": ticker_seleccionado, "tipo": "COMPRA", "cantidad": float(cantidad_operacion)}
+    )
+
+if col_sell.button("Registrar Venta"):
+    unidades_actuales = st.session_state.cartera_unidades[ticker_seleccionado]
+    if cantidad_operacion <= unidades_actuales:
+        st.session_state.cartera_unidades[ticker_seleccionado] -= float(cantidad_operacion)
+        st.session_state.historial_operaciones.append(
+            {"activo": ticker_seleccionado, "tipo": "VENTA", "cantidad": float(cantidad_operacion)}
+        )
+    else:
+        st.sidebar.error("No puedes vender mas unidades de las que tienes en cartera.")
+
+unidades_en_cartera = st.session_state.cartera_unidades[ticker_seleccionado]
+tiene_posicion = unidades_en_cartera > 0
+st.sidebar.caption(f"Unidades actuales de {nombre_moneda}: {unidades_en_cartera:.4f}")
+
 # ==========================================
 # NUCLEO DEL MODELO
 # ==========================================
@@ -84,7 +120,7 @@ precision = accuracy_score(y_test, preds) * 100
 # ==========================================
 precio_actual = data['price'].iloc[-1]
 ultima_fila = data.iloc[[-1]][features]
-prediccion_hoy = model.predict(ultima_fila)
+prediccion_hoy = int(model.predict(ultima_fila)[0])
 
 col1, col2, col3 = st.columns(3)
 col1.metric(f"Precio Actual {nombre_moneda}", f"${precio_actual:,.4f}")
@@ -92,12 +128,20 @@ col2.metric("Precision Historica", f"{precision:.2f}%")
 
 if prediccion_hoy == 1:
     estado = "COMPRAR"
-elif prediccion_hoy == -1:
+elif prediccion_hoy == -1 and tiene_posicion:
     estado = "VENDER"
+elif prediccion_hoy == -1 and not tiene_posicion:
+    estado = "ESPERAR (SIN POSICION PARA VENDER)"
 else:
     estado = "ESPERAR / HOLD"
 
 col3.metric("Decision de la IA", estado)
+st.caption(f"Posicion actual en {nombre_moneda}: {unidades_en_cartera:.4f} unidades")
+
+if st.session_state.historial_operaciones:
+    st.subheader("Historial de Operaciones (Sesion)")
+    historial_df = pd.DataFrame(st.session_state.historial_operaciones).tail(10)
+    st.dataframe(historial_df, use_container_width=True)
 
 st.subheader(f"Grafico Historico y Senales ({nombre_moneda})")
 plot_data = data.iloc[-365:].copy()
