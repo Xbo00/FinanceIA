@@ -133,7 +133,7 @@ elif prediccion_hoy == -1 and tiene_posicion:
 elif prediccion_hoy == -1 and not tiene_posicion:
     estado = "ESPERAR (SIN POSICION PARA VENDER)"
 else:
-    estado = "ESPERAR / HOLD"
+    estado = "ESPERAR"
 
 col3.metric("Decision de la IA", estado)
 st.caption(f"Posicion actual en {nombre_moneda}: {unidades_en_cartera:.4f} unidades")
