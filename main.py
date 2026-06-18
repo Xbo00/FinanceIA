@@ -292,10 +292,7 @@ with st.expander("Evaluación del modelo"):
     st.dataframe(analysis["confusion_df"], use_container_width=True)
 
 with st.expander("Backtest básico"):
-    st.write(
-        "Backtest simple: durante el tramo de test, la estrategia solo mantiene posición "
-        "cuando la predicción es COMPRAR. No incluye comisiones, spreads ni liquidez."
-    )
+    st.write("Backtest simple calculado sobre el tramo de test.")
     backtest_cols = st.columns(2)
     backtest_cols[0].metric("Retorno estrategia", f"{analysis['strategy_return']:.2f}%")
     backtest_cols[1].metric("Retorno mercado", f"{analysis['market_return']:.2f}%")
