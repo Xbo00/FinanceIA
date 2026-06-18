@@ -23,10 +23,6 @@ SIGNAL_LABELS = {-1: "VENDER", 0: "ESPERAR", 1: "COMPRAR"}
 
 st.set_page_config(page_title="FinanceIA", layout="wide")
 st.title("FinanceIA - Sistema de Trading IA")
-st.warning(
-    "Proyecto educativo: las señales generadas no son asesoramiento financiero. "
-    "Usa la app como apoyo de análisis, no como recomendación de inversión."
-)
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
@@ -277,11 +273,6 @@ ax.grid(True, alpha=0.3)
 st.pyplot(fig)
 plt.close(fig)
 
-st.caption(
-    "Las señales históricas son estimaciones del modelo sobre los datos disponibles; "
-    "no garantizan resultados futuros."
-)
-
 with st.expander("Evaluación del modelo"):
     st.write(
         "La evaluación usa el 20% final de los datos como test, respetando el orden temporal. "
@@ -300,7 +291,7 @@ with st.expander("Evaluación del modelo"):
     st.write("Matriz de confusión")
     st.dataframe(analysis["confusion_df"], use_container_width=True)
 
-with st.expander("Backtest educativo"):
+with st.expander("Backtest básico"):
     st.write(
         "Backtest simple: durante el tramo de test, la estrategia solo mantiene posición "
         "cuando la predicción es COMPRAR. No incluye comisiones, spreads ni liquidez."
