@@ -1,6 +1,5 @@
-streamlit
-yfinance
-pandas
-numpy
-matplotlib
-scikit-learn
+streamlit>=1.36,<2
+yfinance>=0.2.40,<0.3
+pandas>=2.2,<3
+matplotlib>=3.8,<4
+scikit-learn>=1.5,<2
