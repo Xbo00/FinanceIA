@@ -30,11 +30,3 @@ streamlit run main.py
 La app descarga cuatro años de datos diarios para el activo seleccionado. Después calcula indicadores técnicos y entrena un modelo `RandomForestClassifier` para clasificar el movimiento esperado según el número de días elegido en el panel lateral.
 
 La predicción actual se calcula con el último dato real disponible. El entrenamiento elimina solamente las filas que no tienen objetivo futuro conocido, evitando usar una fila antigua como si fuera la predicción más reciente.
-
-## Ideas de mejora
-
-- Añadir más indicadores técnicos, como RSI, MACD o volumen.
-- Guardar operaciones en una base de datos o archivo.
-- Incluir comisiones, spreads y slippage en el backtest.
-- Separar el código en módulos para datos, modelo, cartera e interfaz.
-- Desplegar la app en Streamlit Community Cloud.
